@@ -175,3 +175,57 @@ So the fix passes the existing test suite.
 
 The most useful AI reply was the one based on the complete stack trace because it clearly identified the failing test, the expected and actual values, and the likely boundary-condition error in `PriceEngine.java`. The least useful reply was the one based on the shortest stack-trace excerpt because it provided less context and made the root cause less certain. In this case, the complete stack trace was not strictly necessary to identify the bug, but it provided enough context to confirm the failing test and trace the failure to the loyalty-tier calculation. Overall, the progressively longer stack traces showed that one or two lines can suggest the problem, while the full trace provides stronger evidence for confirming the diagnosis.
 
+### Refactoring Priority Ranking
+
+| Rank | Method | Current cyclomatic complexity estimate | First refactor move | Expected complexity reduction |
+|---|---|---:|---|---|
+| 1 | PriceEngine.quote | about 15–18 | extract-method | Breaking the method into subtotal, promo, loyalty, and tax phases would collapse several nested condition chains into smaller, single-purpose routines and cut the effective complexity by roughly half. |
+
+This file has one meaningful business method, and `PriceEngine.quote` is the clear refactoring priority because it combines validation, subtotal calculation, surcharge logic, promo matching, loyalty-tier branching, and tax calculation in one method. The best first move is extraction of those phases into smaller methods, since that isolates responsibilities without changing behavior.
+
+## Session 4B — Part B: Apply Extract-Method Refactor
+
+### AI Prompt
+
+Extract the loyalty-tier discount block into a private
+helper method ‘applyLoyaltyDiscount(...)‘. Do NOT change
+public method signatures. Show the diff.
+
+### AI Response
+
+The AI proposed extracting the loyalty-tier discount logic from `PriceEngine.quote` into a private helper method:
+
+```java
+private static Money applyLoyaltyDiscount(Money running, Money subtotal, Customer customer)
+```
+
+The proposed change replaced the loyalty-tier block inside `quote` with:
+
+```java
+running = applyLoyaltyDiscount(running, subtotal, customer);
+```
+
+The helper retained the existing loyalty-tier behavior, including the Session 4A correction from `years > 5` to `years >= 5`.
+
+### Review
+
+The public `quote(...)` method signature was unchanged. The helper retained the original parameter and return types, did not introduce or remove early returns, and preserved the loyalty-tier conditions and discount calculation. No behavior outside the extracted loyalty-tier block was intentionally changed.
+
+### Verification
+
+The proposed diff was applied.
+
+Command:
+
+```text
+make test
+```
+
+Result:
+
+* 10 tests found
+* 10 tests started
+* 10 tests successful
+* 0 tests failed
+
+Therefore, the extract-method refactor passed the existing regression test suite.
