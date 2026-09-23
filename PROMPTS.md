@@ -229,3 +229,82 @@ Result:
 * 0 tests failed
 
 Therefore, the extract-method refactor passed the existing regression test suite.
+
+## Session 4B Part C — SpotBugs Fix
+
+### Session 4B — Part C: Fix a SpotBugs Finding
+
+#### Finding Selected
+**Rule:** EI — Exposed Internal Representation
+
+**Flagged code region:** `Order.java`, line 4
+
+```java
+public record Order(long id, List<Line> lines, boolean expedited,
+                    String promoCode) {
+```
+
+#### AI Prompt
+SpotBugs reports the finding EI on the following
+code. Explain what the rule requires and show the smallest
+patch that satisfies it without changing behaviour.
+Show the diff.
+
+```java
+public record Order(long id, List<Line> lines, boolean expedited,
+                    String promoCode) {
+
+    public record Line(String sku, int qty, Money unit) {}
+}
+```
+
+#### AI Response
+The SpotBugs `EI` warning means “Exposed Internal Representation.”
+
+This record stores a mutable `List<Line>` in a field, and the getter for that field exposes the actual internal list object to callers. If anybody outside the class mutates that list, the object’s internal state changes unexpectedly.
+
+The proposed fix was to defensively copy the list when the record is created:
+
+```diff
+--- a/src/Order.java
++++ b/src/Order.java
+@@
+ public record Order(long id, List<Line> lines, boolean expedited,
+                     String promoCode) {
+ 
++    public Order {
++        lines = List.copyOf(lines);
++    }
++
+     public record Line(String sku, int qty, Money unit) {}
+ }
+```
+
+#### Review and Verification
+The patch keeps the public `Order` record signature unchanged and prevents later mutation of the stored `lines` list through an externally supplied mutable list.
+
+The patch was applied and verified with:
+
+```text
+make spotbugs
+```
+
+Result: no SpotBugs findings were reported.
+
+The regression suite was then run with:
+
+```text
+make test
+```
+
+Result:
+
+- 10 tests found
+- 10 tests started
+- 10 tests successful
+- 0 tests failed
+
+The patch therefore passed the available static-analysis check and the existing regression test suite.
+
+## Session 4B — Part D: Reflection
+Using a manual cyclomatic-complexity count, `PriceEngine.quote` decreased from 18 before the extract-method refactor to 14 afterward, a drop of 4 decision points. The SpotBugs fix required understanding the `EI` rule sufficiently to recognize that the mutable list could expose the record's internal state; the AI explanation was helpful, but the behavior and API implications still needed to be reviewed before applying the patch. The AI proposed extracting several phases of `quote`, including subtotal, promo, loyalty, and tax handling, but I rejected the broader extraction for this task because the assignment called for one extract-method refactor and I wanted to limit the behavioral surface of the change to the loyalty-tier block. The applied changes were therefore kept small and verified with the existing test suite and SpotBugs.
